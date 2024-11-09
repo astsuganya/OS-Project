@@ -1,0 +1,76 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: rgb(244, 244, 244);
+    margin: 0;
+    padding: 0;
+}
+.container {
+    max-width: 500px;
+    margin: 20px auto;
+    padding: 40px;
+    background-color: white;
+    border-radius: 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+h1 {
+    text-align: center;
+    color: #333;
+    margin-top: 10px;
+}
+select, input, button {
+    display: block;
+    width: 100%; 
+    margin: 10px auto;
+    padding: 10px;
+    max-width: 480px;
+    box-sizing: border-box;
+    border-radius: 12px;
+}
+.button-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+.button-container button {
+    max-width: 230px;
+    flex: 1;
+}
+label {
+    display: block;
+    margin-bottom: 8px;
+}
+button {
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+}
+button:hover {
+    background-color: #0056b3;
+}
+.process-list {
+    margin-top: 20px;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+table, th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+}
+th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+.output-section{
+    max-width: 1000px;
+    margin: 20px auto;
+    padding: 40px;
+    border-radius: 20px;
+    background-color: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
