@@ -17,6 +17,17 @@ h1 {
     color: #333;
     margin-top: 10px;
 }
+.delete-button {
+    width: 20px;
+    height: 20px;
+    background-image: url(garbagecan.png);
+    background-size: cover;
+    background-position: center;
+    cursor: pointer;
+    background-color: white;
+}
+
+
 select, input, button {
     display: block;
     width: 100%; 
@@ -25,6 +36,9 @@ select, input, button {
     max-width: 480px;
     box-sizing: border-box;
     border-radius: 12px;
+}
+.delete-button:hover {
+    background-color: white;
 }
 .button-container {
     display: flex;
