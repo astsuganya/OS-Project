@@ -43,6 +43,11 @@
             <label for="priority">Priority :</label>
             <input type="number" id="priority" min="1" placeholder="Enter Priority">
         </div>
+
+        <div id="multilevelQuantumInput" style="display: none;">
+            <label for="multiTimeQuantum">Enter Time Quantum for Multilevel Queue:</label>
+            <input type="number" id="multiTimeQuantum" min="1" placeholder="Time Quantum for Each Process">
+        </div>
     
         <div class="button-container">
             <button onclick="addProcess()">Add Process</button>
@@ -58,9 +63,9 @@
                     <th>Process ID</th>
                     <th>Arrival Time</th>
                     <th>Burst Time</th>
-                    <th id="tqColumnHeader" style="display: none;">T.Q.</th>
                     <th id="priorityColumnHeader" style="display: none;">Priority</th>
-                    <th>Delete</th>
+                    <th id="tqColumnHeader" style="display: none;">T.Q.</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
