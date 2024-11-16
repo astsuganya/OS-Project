@@ -300,15 +300,6 @@ function runScheduler() {
         case "srtf":
             results = srtf();
             break;
-        case "priority":
-            results = priorityScheduling(processes);
-            break;
-        case "hrrn":
-            results = hrrnScheduling(processes);
-            break;
-        case "multilevel":
-            results = multilevelQueueScheduling(processes);
-            break;
         default:
             return;  // ถ้าไม่มีการเลือกอัลกอริธึมที่ถูกต้อง
     }
