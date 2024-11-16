@@ -17,17 +17,6 @@ h1 {
     color: #333;
     margin-top: 10px;
 }
-.delete-button {
-    width: 20px;
-    height: 20px;
-    background-image: url(garbagecan.png);
-    background-size: cover;
-    background-position: center;
-    cursor: pointer;
-    background-color: white;
-}
-
-
 select, input, button {
     display: block;
     width: 100%; 
@@ -36,9 +25,6 @@ select, input, button {
     max-width: 480px;
     box-sizing: border-box;
     border-radius: 12px;
-}
-.delete-button:hover {
-    background-color: white;
 }
 .button-container {
     display: flex;
@@ -87,4 +73,65 @@ th {
     background-color: white;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     text-align: center;
+}
+.ganttchart {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-direction: column;
+    margin-top: 20px;
+}
+
+.timeline {
+    display: flex;
+    justify-content: center;
+    position: relative;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.timeline div {
+    display: flex;
+    flex: 0.5;
+    padding: 5px;
+    background-color: #4CAF50;
+    color: white;
+    border-radius: 4px;
+    margin: 0 2px;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+    height: 40px;
+}
+
+.time {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 5px;
+    position: relative;
+    width: 100%;
+}
+
+.time div {
+    flex: 0.5;
+    padding: 5px;
+    text-align: left;
+    margin: 0 2px;
+
+}
+.gantt-process.gap {
+    background-color: #ddd;
+    color: #000;
+}
+.delete-button {
+    width: 20px;
+    height: 20px;
+    background-image: url(garbagecan.png);
+    background-size: cover;
+    background-position: center;
+    cursor: pointer;
+    background-color: white;
+}
+.delete-button:hover {
+    background-color: white;
 }
