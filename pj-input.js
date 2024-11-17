@@ -1,5 +1,6 @@
 let processIdCounter = 1;
 let processes = [];
+let timeQuantum = null;
 
 function handleAlgorithmChange() {
     const algorithm = document.getElementById("algorithmSelect").value;
@@ -43,6 +44,10 @@ function addProcess() {
     const timeQuantum = algorithm === "rr" ? parseInt(document.getElementById("timeQuantum").value) : 
                         algorithm === "multilevel" ? parseInt(document.getElementById("multiTimeQuantum").value) : null;
 
+    if (algorithm === "rr") {
+        roundRobinQuantum = timeQuantum; // Update the global time quantum for consistency
+    }
+
     // ตรวจสอบค่าที่กรอก
     if (isNaN(arrivalTime) || arrivalTime < 0 || isNaN(burstTime) || burstTime < 0 || 
         (algorithm === "priority" && (isNaN(priority) || priority < 0)) || 
@@ -64,8 +69,6 @@ function addProcess() {
     clearInputs();
 }
 
-
-
 function clearInputs() {
     document.getElementById("arrivalTime").value = '';
     document.getElementById("burstTime").value = '';
@@ -73,12 +76,25 @@ function clearInputs() {
     document.getElementById("multiTimeQuantum").value = '';
 }
 
+let roundRobinQuantum = null; // Global variable to store a consistent time quantum for Round Robin
+
 function generateProcesses() {
     const algorithm = document.getElementById("algorithmSelect").value;
+
+    if (algorithm === "rr") {
+        const userInputQuantum = parseInt(document.getElementById("timeQuantum").value);
+        if (userInputQuantum && userInputQuantum > 0) {
+            roundRobinQuantum = userInputQuantum; // Use user-inputted quantum if valid
+        } else if (!roundRobinQuantum) {
+            roundRobinQuantum = Math.floor(Math.random() * 10) + 1; // Generate random quantum if not set
+        }
+    }
+
     const arrivalTime = Math.floor(Math.random() * 10);
     const burstTime = Math.floor(Math.random() * 10) + 1;
     const priority = algorithm === "priority" ? Math.floor(Math.random() * 10) + 1 : null;
-    const timeQuantum = algorithm === "rr" || algorithm === "multilevel" ? Math.floor(Math.random() * 10) + 1 : null;
+    const timeQuantum = algorithm === "rr" ? roundRobinQuantum : 
+                        algorithm === "multilevel" ? Math.floor(Math.random() * 10) + 1 : null;
 
     const process = {
         id: processIdCounter++,
@@ -97,9 +113,14 @@ function updateProcessTable() {
     const algorithm = document.getElementById("algorithmSelect").value;
     tableBody.innerHTML = ""; 
 
+    // Sort the processes array by ID before rendering
+    processes.sort((a, b) => a.id - b.id);
+
+    // Reassign sequential IDs dynamically
     processes.forEach(process => {
         const row = tableBody.insertRow();
-        row.insertCell(0).innerText = process.id;
+
+        row.insertCell(0).innerText = `P${process.id}`; 
         row.insertCell(1).innerText = process.arrivalTime;
         row.insertCell(2).innerText = process.burstTime;
 
@@ -153,54 +174,99 @@ function fcfs() {
 }
 
 // Round Robin Algorithm
-function rr(timeQuantum) {
+function rr(processes, timeQuantum) {
     if (!timeQuantum || timeQuantum <= 0) {
         console.error("Invalid Time Quantum for Round Robin.");
         return [];
     }
 
-    let currentTime = 0;
-    let queue = [];
-    let results = [];
-    processes.forEach(p => p.remainingTime = p.burstTime);  // กำหนด remainingTime ให้เท่ากับ burstTime
-    let index = 0;
+    if (!Array.isArray(processes) || processes.length === 0) {
+        console.error("Processes must be a non-empty array.");
+        return [];
+    }
 
-    while (processes.some(p => p.remainingTime > 0)) {
-        while (index < processes.length && processes[index].arrivalTime <= currentTime) {
-            queue.push(processes[index]);
+    // Create a copy of processes to avoid modifying the original data
+    const processesCopy = processes.map(p => ({
+        ...p,
+        remainingTime: p.burstTime, // track remaining burst time
+        startTime: -1, // track the start time
+        finishTime: 0, // track finish time
+        waitingTime: 0, // track waiting time
+        turnaroundTime: 0, // track turnaround time
+    }));
+
+    let results = [];
+    let timeline = [];
+    let readyQueue = [];
+    let currentTime = 0;
+    let index = 0; // process arrival index
+
+    // Run the algorithm until all processes are completed
+    while (processesCopy.some(p => p.remainingTime > 0)) {
+        // Add processes to ready queue that have arrived and not yet executed
+        while (index < processesCopy.length && processesCopy[index].arrivalTime <= currentTime) {
+            readyQueue.push(processesCopy[index]);
             index++;
         }
 
-        if (queue.length > 0) {
-            let process = queue.shift();
-            const executionTime = Math.min(process.remainingTime, timeQuantum);
-            currentTime += executionTime;
-            process.remainingTime -= executionTime;
-
-            if (process.remainingTime > 0) {
-                queue.push(process);
-            } else {
-                process.completionTime = currentTime;
-                process.turnaroundTime = currentTime - process.arrivalTime;
-                process.waitingTime = process.turnaroundTime - process.burstTime;
-
-                results.push({
-                    id: process.id,
-                    arrival: process.arrivalTime,
-                    burst: process.burstTime,
-                    finish: process.completionTime,
-                    turnaround: process.turnaroundTime,
-                    waiting: process.waitingTime
-                });
+        // If no process is in the ready queue, idle until the next process arrives
+        if (readyQueue.length === 0) {
+            const nextArrival = processesCopy
+                .filter(p => p.remainingTime > 0)
+                .reduce((min, p) => Math.min(min, p.arrivalTime), Infinity);
+            if (nextArrival !== Infinity) {
+                timeline.push({ process: "Idle", duration: nextArrival - currentTime });
+                currentTime = nextArrival;
             }
+            continue;
+        }
+
+        // Process the first process in the ready queue
+        const currentProcess = readyQueue.shift(); // Fetch the first process from the queue
+        const executionTime = Math.min(timeQuantum, currentProcess.remainingTime);
+
+        // Track the start time when the process is first executed
+        if (currentProcess.startTime === -1) {
+            currentProcess.startTime = currentTime;
+        }
+
+        // Add the process execution to the Gantt chart
+        timeline.push({ process: `P${currentProcess.id}`, duration: executionTime });
+
+        // Update remaining burst time and current time
+        currentProcess.remainingTime -= executionTime;
+        currentTime += executionTime;
+
+        // If the process is not finished, add it back to the ready queue at the end of the cycle
+        if (currentProcess.remainingTime > 0) {
+            readyQueue.push(currentProcess);
         } else {
-            currentTime++;
+            // If the process is finished, calculate its finish time, turnaround time, and waiting time
+            currentProcess.finishTime = currentTime;
+            currentProcess.turnaroundTime = currentProcess.finishTime - currentProcess.arrivalTime;
+            currentProcess.waitingTime = currentProcess.turnaroundTime - currentProcess.burstTime;
+
+            // Store the result for the finished process
+            results.push({
+                id: currentProcess.id,
+                arrival: currentProcess.arrivalTime,
+                burst: currentProcess.burstTime,
+                finish: currentProcess.finishTime,
+                turnaround: currentProcess.turnaroundTime,
+                waiting: currentProcess.waitingTime
+            });
+        }
+
+        // Re-add the process back at the end of the queue after one full cycle (only if not finished)
+        if (readyQueue.length > 0) {
+            readyQueue.push(currentProcess);
         }
     }
 
+    // Output the Gantt chart
+    console.log("Gantt Chart:", timeline.map(entry => `${entry.process} (${entry.duration})`).join(" | "));
     return results;
 }
-
 
 // Shortest Job First Algorithm
 function sjf() {
@@ -273,26 +339,28 @@ function srtf() {
     return results;
 }
 
-
-
 // Updated runScheduler Function
 function runScheduler() {
     const algorithm = document.getElementById("algorithmSelect").value;
     const timeQuantumInput = document.getElementById("timeQuantum").value;  // ตรวจสอบการอ่านค่า Time Quantum
-    const timeQuantum = (algorithm === "rr" && timeQuantumInput) ? parseInt(timeQuantumInput) : null;
-    
+    const timeQuantum = algorithm === "rr" ? parseInt(timeQuantumInput) || roundRobinQuantum : null;
+
     if (algorithm === "rr" && (!timeQuantum || timeQuantum <= 0)) {
         alert("Please enter a valid Time Quantum for Round Robin.");
         return;
     }
 
+    // Update the global quantum to maintain consistency for RR
+    if (algorithm === "rr") {
+        roundRobinQuantum = timeQuantum;
+    }
     let results = [];
     switch (algorithm) {
         case "fcfs":
             results = fcfs();
             break;
         case "rr":
-            results = rr(timeQuantum);  // ตรวจสอบการส่งค่า Time Quantum
+            results = rr(processes, timeQuantum);  // ตรวจสอบการส่งค่า Time Quantum
             break;
         case "sjf":
             results = sjf();
@@ -301,6 +369,7 @@ function runScheduler() {
             results = srtf();
             break;
         default:
+            alert("Unsupported algorithm selected.");
             return;  // ถ้าไม่มีการเลือกอัลกอริธึมที่ถูกต้อง
     }
 
@@ -309,8 +378,6 @@ function runScheduler() {
         displayResults(results);
     }
 }
-
-
 
 function displayResults(results) {
     const timeline = document.getElementById("timeline");
@@ -328,21 +395,26 @@ function displayResults(results) {
     let totalTurnaround = 0;
     let totalWaiting = 0;
 
+    // Ensure the results array is sorted by the order of execution (e.g., finish time)
+    results.sort((a, b) => a.finish - b.finish);
+
     results.forEach(result => {
+        const dynamicId = `P${result.id}`;
+
         if (result.arrival > currentTime) {
             ganttChart += `<div class="gantt-process gap" style="flex:${result.arrival - currentTime}">Idle</div>`;
             ganttLabels += `<div style="flex:${result.arrival - currentTime}">${currentTime}</div>`;
             currentTime = result.arrival;
         }
 
-        ganttChart += `<div class="gantt-process" style="flex:${result.burst}">P${result.id}</div>`;
+        ganttChart += `<div class="gantt-process" style="flex:${result.burst}">${dynamicId}</div>`;
         ganttLabels += `<div style="flex:${result.burst}">${currentTime}</div>`;
 
         currentTime += result.burst;
 
         tableRows += `
             <tr>
-                <td>P${result.id}</td>
+                <td>${dynamicId}</td>  <!-- Correctly display the process ID -->
                 <td>${result.arrival}</td>
                 <td>${result.burst}</td>
                 <td>${result.finish}</td>
@@ -353,6 +425,9 @@ function displayResults(results) {
         totalTurnaround += result.turnaround;
         totalWaiting += result.waiting;
     });
+
+    // Add final time marker to Gantt chart
+    ganttLabels += `<div>${currentTime}</div>`;
 
     const averageTurnaround = totalTurnaround / results.length;
     const averageWaiting = totalWaiting / results.length;
