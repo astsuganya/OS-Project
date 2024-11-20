@@ -1,6 +1,20 @@
 let processIdCounter = 1;
 let processes = [];
 let timeQuantum = null;
+let priorityGanttChart = [];
+class Process {
+    constructor(name, at, bt) {
+        this.name = name; // ชื่อ process
+        this.at = at;     // Arrival Time
+        this.bt = bt;     // Burst Time
+        this.stime = 0;   // Start Time (เวลาที่เริ่มทำงาน)
+        this.ctime = 0;   // Completion Time (เวลาที่เสร็จสิ้น)
+        this.wt = 0;      // Waiting Time
+        this.tt = 0;      // Turnaround Time
+        this.completed = false;
+        this.ntt = 0;     // Normalized Turnaround Time
+    }
+}
 
 function handleAlgorithmChange() {
     const algorithm = document.getElementById("algorithmSelect").value;
@@ -50,8 +64,8 @@ function addProcess() {
 
     // ตรวจสอบค่าที่กรอก
     if (isNaN(arrivalTime) || arrivalTime < 0 || isNaN(burstTime) || burstTime < 0 || 
-        (algorithm === "priority" && (isNaN(priority) || priority < 0)) || 
-        ((algorithm === "rr" || algorithm === "multilevel") && (isNaN(timeQuantum) || timeQuantum < 0))) {
+        (algorithm === "priority" && (isNaN(priority) || priority < 0))  
+        ) {
         alert("Please enter valid values for all fields. All values must be greater than or equal to 0.");
         return;
     }
@@ -172,101 +186,144 @@ function fcfs() {
 
     return results;
 }
-
+// โค้ดคำนวณ RR
+const rrScheduling = (arrivalTime, burstTime, timeQuantum) => {
+    const processesInfo = arrivalTime.map((item, index) => {
+        return {
+          job: `P${index + 1}`,
+          at: item,
+          bt: burstTime[index],
+        };
+      })
+      .sort((obj1, obj2) => {
+        if (obj1.at > obj2.at) return 1;
+        if (obj1.at < obj2.at) return -1;
+        return 0;
+      });
+  
+    const solvedProcessesInfo = [];
+    const ganttChartInfo = [];
+    const readyQueue = [];
+    let currentTime = processesInfo[0].at;
+    const unfinishedJobs = [...processesInfo];
+  
+    const remainingTime = processesInfo.reduce((acc, process) => {
+      acc[process.job] = process.bt;
+      return acc;
+    }, {});
+  
+    readyQueue.push(unfinishedJobs[0]);
+  
+    while (
+      Object.values(remainingTime).reduce((acc, cur) => acc + cur, 0) > 0 &&
+      unfinishedJobs.length > 0
+    ) {
+      if (readyQueue.length === 0 && unfinishedJobs.length > 0) {
+        readyQueue.push(unfinishedJobs[0]);
+        currentTime = readyQueue[0].at;
+      }
+  
+      const processToExecute = readyQueue[0];
+  
+      if (remainingTime[processToExecute.job] <= timeQuantum) {
+        const remainingT = remainingTime[processToExecute.job];
+        remainingTime[processToExecute.job] -= remainingT;
+        const prevCurrentTime = currentTime;
+        currentTime += remainingT;
+  
+        ganttChartInfo.push({
+          job: processToExecute.job,
+          start: prevCurrentTime,
+          stop: currentTime,
+        });
+      } else {
+        remainingTime[processToExecute.job] -= timeQuantum;
+        const prevCurrentTime = currentTime;
+        currentTime += timeQuantum;
+  
+        ganttChartInfo.push({
+          job: processToExecute.job,
+          start: prevCurrentTime,
+          stop: currentTime,
+        });
+      }
+  
+      const processToArriveInThisCycle = processesInfo.filter((p) => {
+        return (
+          p.at <= currentTime &&
+          p !== processToExecute &&
+          !readyQueue.includes(p) &&
+          unfinishedJobs.includes(p)
+        );
+      });
+  
+      readyQueue.push(...processToArriveInThisCycle);
+      readyQueue.push(readyQueue.shift());
+  
+      if (remainingTime[processToExecute.job] === 0) {
+        const indexToRemoveUJ = unfinishedJobs.indexOf(processToExecute);
+        if (indexToRemoveUJ > -1) {
+          unfinishedJobs.splice(indexToRemoveUJ, 1);
+        }
+        const indexToRemoveRQ = readyQueue.indexOf(processToExecute);
+        if (indexToRemoveRQ > -1) {
+          readyQueue.splice(indexToRemoveRQ, 1);
+        }
+  
+        solvedProcessesInfo.push({
+          ...processToExecute,
+          ft: currentTime,
+          tat: currentTime - processToExecute.at,
+          wat: currentTime - processToExecute.at - processToExecute.bt,
+        });
+      }
+    }
+  
+    solvedProcessesInfo.sort((obj1, obj2) => {
+      if (obj1.at > obj2.at) return 1;
+      if (obj1.at < obj2.at) return -1;
+      if (obj1.job > obj2.job) return 1;
+      if (obj1.job < obj2.job) return -1;
+      return 0;
+    });
+  
+    return {
+      processes: solvedProcessesInfo,
+      ganttChartInfo,
+    };
+  };
+  
 // Round Robin Algorithm
-function rr(processes, timeQuantum) {
-    if (!timeQuantum || timeQuantum <= 0) {
-        console.error("Invalid Time Quantum for Round Robin.");
-        return [];
-    }
+function rr(processes, timeQuantumRR) {
+    const arrivalTimeRR = processes.map((p) => p.arrivalTime);
+    const burstTimeRR = processes.map((p) => p.burstTime);
 
-    if (!Array.isArray(processes) || processes.length === 0) {
-        console.error("Processes must be a non-empty array.");
-        return [];
-    }
+    // เรียกใช้ rrScheduling
+    const { processes: solvedProcesses, ganttChartInfo } = rrScheduling(arrivalTimeRR, burstTimeRR, timeQuantumRR);
 
-    // Create a copy of processes to avoid modifying the original data
-    const processesCopy = processes.map(p => ({
-        ...p,
-        remainingTime: p.burstTime, // track remaining burst time
-        startTime: -1, // track the start time
-        finishTime: 0, // track finish time
-        waitingTime: 0, // track waiting time
-        turnaroundTime: 0, // track turnaround time
+    // สร้างข้อมูลในรูปแบบที่ต้องการสำหรับ displayResults
+    const results = solvedProcesses.map((proc) => ({
+        id: proc.job.replace("P", ""), // ลบ "P" เพื่อให้ id ตรงกับ format
+        arrival: proc.at,
+        burst: proc.bt,
+        finish: proc.ft,
+        turnaround: proc.tat,
+        waiting: proc.wat,
     }));
 
-    let results = [];
-    let timeline = [];
-    let readyQueue = [];
-    let currentTime = 0;
-    let index = 0; // process arrival index
+    // สร้าง Gantt Chart สำหรับ displayResults
+    priorityGanttChart = ganttChartInfo.map((entry) => ({
+        id: entry.job.replace("P", ""), // ลบ "P" เพื่อให้ตรงกับ format
+        startTime: entry.start,
+        endTime: entry.stop,
+    }));
 
-    // Run the algorithm until all processes are completed
-    while (processesCopy.some(p => p.remainingTime > 0)) {
-        // Add processes to ready queue that have arrived and not yet executed
-        while (index < processesCopy.length && processesCopy[index].arrivalTime <= currentTime) {
-            readyQueue.push(processesCopy[index]);
-            index++;
-        }
-
-        // If no process is in the ready queue, idle until the next process arrives
-        if (readyQueue.length === 0) {
-            const nextArrival = processesCopy
-                .filter(p => p.remainingTime > 0)
-                .reduce((min, p) => Math.min(min, p.arrivalTime), Infinity);
-            if (nextArrival !== Infinity) {
-                timeline.push({ process: "Idle", duration: nextArrival - currentTime });
-                currentTime = nextArrival;
-            }
-            continue;
-        }
-
-        // Process the first process in the ready queue
-        const currentProcess = readyQueue.shift(); // Fetch the first process from the queue
-        const executionTime = Math.min(timeQuantum, currentProcess.remainingTime);
-
-        // Track the start time when the process is first executed
-        if (currentProcess.startTime === -1) {
-            currentProcess.startTime = currentTime;
-        }
-
-        // Add the process execution to the Gantt chart
-        timeline.push({ process: `P${currentProcess.id}`, duration: executionTime });
-
-        // Update remaining burst time and current time
-        currentProcess.remainingTime -= executionTime;
-        currentTime += executionTime;
-
-        // If the process is not finished, add it back to the ready queue at the end of the cycle
-        if (currentProcess.remainingTime > 0) {
-            readyQueue.push(currentProcess);
-        } else {
-            // If the process is finished, calculate its finish time, turnaround time, and waiting time
-            currentProcess.finishTime = currentTime;
-            currentProcess.turnaroundTime = currentProcess.finishTime - currentProcess.arrivalTime;
-            currentProcess.waitingTime = currentProcess.turnaroundTime - currentProcess.burstTime;
-
-            // Store the result for the finished process
-            results.push({
-                id: currentProcess.id,
-                arrival: currentProcess.arrivalTime,
-                burst: currentProcess.burstTime,
-                finish: currentProcess.finishTime,
-                turnaround: currentProcess.turnaroundTime,
-                waiting: currentProcess.waitingTime
-            });
-        }
-
-        // Re-add the process back at the end of the queue after one full cycle (only if not finished)
-        if (readyQueue.length > 0) {
-            readyQueue.push(currentProcess);
-        }
-    }
-
-    // Output the Gantt chart
-    console.log("Gantt Chart:", timeline.map(entry => `${entry.process} (${entry.duration})`).join(" | "));
     return results;
 }
+
+  
+
+
 
 // Shortest Job First Algorithm
 function sjf() {
@@ -338,29 +395,180 @@ function srtf() {
 
     return results;
 }
+//priority  Algorithm
+function priorityScheduling() {
+    let currentTime = 0;
+    let completed = 0;
+    let results = [];
+    let ganttChart = [];
+    let isProcessRunning = false;
+    let currentProcess = null;
+    let totalProcesses = processes.length;
+    let processesCopy = processes.map(p => ({
+        ...p,
+        remainingTime: p.burstTime,
+        completionTime: 0,
+        turnaroundTime: 0,
+        waitingTime: 0,
+    }));
+
+    // Sort processes by arrival time
+    processesCopy.sort((a, b) => a.arrivalTime - b.arrivalTime);
+
+    while (completed !== totalProcesses) {
+        // Get available processes
+        let availableProcesses = processesCopy.filter(p => p.arrivalTime <= currentTime && p.remainingTime > 0);
+
+        if (availableProcesses.length > 0) {
+            // Select the process with the highest priority (lowest priority number)
+            availableProcesses.sort((a, b) => a.priority - b.priority);
+            currentProcess = availableProcesses[0];
+
+            // Execute the process
+            if (!isProcessRunning || currentProcess.id !== ganttChart[ganttChart.length - 1]?.id) {
+                ganttChart.push({
+                    id: currentProcess.id,
+                    startTime: currentTime,
+                });
+            }
+
+            isProcessRunning = true;
+            currentProcess.remainingTime--;
+            currentTime++;
+
+            // Check if the process is completed
+            if (currentProcess.remainingTime === 0) {
+                currentProcess.completionTime = currentTime;
+                currentProcess.turnaroundTime = currentProcess.completionTime - currentProcess.arrivalTime;
+                currentProcess.waitingTime = currentProcess.turnaroundTime - currentProcess.burstTime;
+
+                results.push({
+                    id: currentProcess.id,
+                    arrival: currentProcess.arrivalTime,
+                    burst: currentProcess.burstTime,
+                    finish: currentProcess.completionTime,
+                    turnaround: currentProcess.turnaroundTime,
+                    waiting: currentProcess.waitingTime,
+                });
+
+                completed++;
+                isProcessRunning = false;
+            }
+        } else {
+            // CPU is idle
+            if (!isProcessRunning || ganttChart[ganttChart.length - 1]?.id !== 'Idle') {
+                ganttChart.push({
+                    id: 'Idle',
+                    startTime: currentTime,
+                });
+            }
+            isProcessRunning = false;
+            currentTime++;
+        }
+    }
+
+    // Set end times for Gantt chart entries
+    for (let i = 0; i < ganttChart.length; i++) {
+        if (i < ganttChart.length - 1) {
+            ganttChart[i].endTime = ganttChart[i + 1].startTime;
+        } else {
+            ganttChart[i].endTime = currentTime;
+        }
+    }
+
+    // Store Gantt chart data for display
+    priorityGanttChart = ganttChart;
+
+    return results;
+}
+//HRRN Algorithm
+function hrrnScheduling() {
+    const n = processes.length;
+    const processList = processes.map((process, index) => 
+        new Process(`${index + 1}`, process.arrivalTime, process.burstTime));
+    let ganttChart = [];
+    let t = Math.min(...processList.map(p => p.at));
+    let totalBurstTime = processList.reduce((sum, process) => sum + process.bt, 0);
+    let results = [];
+    let avgwt = 0, avgtt = 0;
+
+    while (processList.some(p => !p.completed)) {
+        let hrr = -1, loc = -1;
+
+        for (let i = 0; i < n; i++) {
+            if (processList[i].at <= t && !processList[i].completed) {
+                let responseRatio = (processList[i].bt + (t - processList[i].at)) / processList[i].bt;
+                if (responseRatio > hrr) {
+                    hrr = responseRatio;
+                    loc = i;
+                }
+            }
+        }
+
+        if (loc === -1) {
+            // ไม่มีโปรเซสที่พร้อม ทำให้ CPU Idle
+            ganttChart.push({ id: 'Idle', startTime: t, endTime: t + 1 });
+            t++;
+            continue;
+        }
+
+        let current = processList[loc];
+        ganttChart.push({ id: current.name, startTime: t, endTime: t + current.bt });
+        current.stime = t;
+        t += current.bt;
+        current.ctime = t;
+        current.completed = true;
+        current.wt = current.stime - current.at;
+        current.tt = current.ctime - current.at;
+        current.ntt = current.tt / current.bt;
+
+        results.push({
+            id: current.name,
+            arrival: current.at,
+            burst: current.bt,
+            start: current.stime,
+            finish: current.ctime,
+            turnaround: current.tt,
+            waiting: current.wt,
+        });
+
+        avgwt += current.wt;
+        avgtt += current.tt;
+    }
+
+    // Gantt Chart Output
+    priorityGanttChart = ganttChart;
+
+    // Output Table Data
+    return results;
+}
+
+
+
 
 // Updated runScheduler Function
 function runScheduler() {
     const algorithm = document.getElementById("algorithmSelect").value;
-    const timeQuantumInput = document.getElementById("timeQuantum").value;  // ตรวจสอบการอ่านค่า Time Quantum
-    const timeQuantum = algorithm === "rr" ? parseInt(timeQuantumInput) || roundRobinQuantum : null;
-
-    if (algorithm === "rr" && (!timeQuantum || timeQuantum <= 0)) {
-        alert("Please enter a valid Time Quantum for Round Robin.");
+    
+    if (processes.length === 0) {
+        alert("No processes available to schedule.");
         return;
     }
 
-    // Update the global quantum to maintain consistency for RR
-    if (algorithm === "rr") {
-        roundRobinQuantum = timeQuantum;
-    }
+    // ดึงค่า Time Quantum สำหรับ RR
+    const timeQuantumRR = processes[0]?.timeQuantum || 0;
+
+    console.log("Algorithm Selected:", algorithm);
+    console.log("Time Quantum for RR:", timeQuantumRR);
+
+   
     let results = [];
     switch (algorithm) {
         case "fcfs":
             results = fcfs();
             break;
         case "rr":
-            results = rr(processes, timeQuantum);  // ตรวจสอบการส่งค่า Time Quantum
+            results = rr(processes, timeQuantumRR);  // ตรวจสอบการส่งค่า Time Quantum
             break;
         case "sjf":
             results = sjf();
@@ -368,6 +576,34 @@ function runScheduler() {
         case "srtf":
             results = srtf();
             break;
+        case "priority":
+            results = priorityScheduling();
+            break;
+        case "hrrn": 
+            results = hrrnScheduling();
+            break;
+            case "multilevel":
+                // ดึง Time Quantum จาก process list
+                const timeQuantum1 = processes[0]?.timeQuantum || 3; // ใช้ค่าจาก process หรือค่าเริ่มต้น 3
+                const timeQuantum2 = timeQuantum1 * 2; // Time Quantum สำหรับ Queue 2
+    
+                // เรียกใช้ MLQ
+                const multilevelResults = mqf(processes, timeQuantum1, timeQuantum2);
+    
+                // Update Gantt Chart
+                priorityGanttChart = multilevelResults.ganttChartInfo;
+    
+                // Format the results for display
+                results = multilevelResults.processes.map(proc => ({
+                    id: proc.job,
+                    arrival: proc.at,
+                    burst: proc.bt,
+                    finish: proc.ft,
+                    turnaround: proc.tat,
+                    waiting: proc.wt,
+                }));
+                break;
+                break;
         default:
             alert("Unsupported algorithm selected.");
             return;  // ถ้าไม่มีการเลือกอัลกอริธึมที่ถูกต้อง
@@ -391,30 +627,57 @@ function displayResults(results) {
     let ganttChart = "";
     let ganttLabels = "";
     let tableRows = "";
-    let currentTime = 0;
     let totalTurnaround = 0;
     let totalWaiting = 0;
 
-    // Ensure the results array is sorted by the order of execution (e.g., finish time)
-    results.sort((a, b) => a.finish - b.finish);
+    if (priorityGanttChart && priorityGanttChart.length > 0) {
+        // ใส่โค้ดของคุณที่นี่ เพื่อสร้าง Gantt Chart
+        priorityGanttChart.forEach((entry, index) => {
+            const processName =  entry.job ? `P${entry.job}`: entry.id === 'Idle' ? 'Idle' : entry.id ? `P${entry.id}` : 'Unknown';
+            console.log(`Gantt Chart Entry [${index}]:`, entry); // Debugging
 
+            const duration = entry.endTime - entry.startTime;
+            const isIdle = processName === 'Idle';
+
+            const cssClass = isIdle ? 'gantt-process gap' : 'gantt-process';
+            ganttChart += `<div class="${cssClass}" style="flex:${duration}">${processName}</div>`;
+            ganttLabels += `<div style="flex:${duration}">${entry.startTime}</div>`;
+        });
+
+        // Add final time marker
+        if (priorityGanttChart.length > 0) {
+            ganttLabels += `<div>${priorityGanttChart[priorityGanttChart.length - 1].endTime}</div>`;
+        }
+    } else {
+        // Existing code for other algorithms
+        let currentTime = 0;
+        results.sort((a, b) => a.finish - b.finish);
+
+        results.forEach(result => {
+            const dynamicId = `P${result.id}`;
+
+            if (result.arrival > currentTime) {
+                ganttChart += `<div class="gantt-process gap" style="flex:${result.arrival - currentTime}">Idle</div>`;
+                ganttLabels += `<div style="flex:${result.arrival - currentTime}">${currentTime}</div>`;
+                currentTime = result.arrival;
+            }
+
+            ganttChart += `<div class="gantt-process" style="flex:${result.burst}">${dynamicId}</div>`;
+            ganttLabels += `<div style="flex:${result.burst}">${currentTime}</div>`;
+
+            currentTime += result.burst;
+        });
+
+        // Add final time marker
+        ganttLabels += `<div>${currentTime}</div>`;
+    }
+
+    // Build the output table
     results.forEach(result => {
         const dynamicId = `P${result.id}`;
-
-        if (result.arrival > currentTime) {
-            ganttChart += `<div class="gantt-process gap" style="flex:${result.arrival - currentTime}">Idle</div>`;
-            ganttLabels += `<div style="flex:${result.arrival - currentTime}">${currentTime}</div>`;
-            currentTime = result.arrival;
-        }
-
-        ganttChart += `<div class="gantt-process" style="flex:${result.burst}">${dynamicId}</div>`;
-        ganttLabels += `<div style="flex:${result.burst}">${currentTime}</div>`;
-
-        currentTime += result.burst;
-
         tableRows += `
             <tr>
-                <td>${dynamicId}</td>  <!-- Correctly display the process ID -->
+                <td>${dynamicId}</td>
                 <td>${result.arrival}</td>
                 <td>${result.burst}</td>
                 <td>${result.finish}</td>
@@ -425,9 +688,6 @@ function displayResults(results) {
         totalTurnaround += result.turnaround;
         totalWaiting += result.waiting;
     });
-
-    // Add final time marker to Gantt chart
-    ganttLabels += `<div>${currentTime}</div>`;
 
     const averageTurnaround = totalTurnaround / results.length;
     const averageWaiting = totalWaiting / results.length;
